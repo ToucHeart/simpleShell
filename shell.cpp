@@ -5,14 +5,19 @@
 #include <unistd.h>
 #include<iostream>
 #include<sys/wait.h>
-#include <signal.h>
 using namespace std;
 
 static char dir[255];
 
-static void printPrompt()
+static const bool SUCCESS = true, FAIL = false;
+
+static void printPrompt(bool succeedLast)
 {
-	printf("\033[1;32;47m-> %s\033[0m$ ", getcwd(dir, 255));
+	if (succeedLast)
+		printf("\033[1;32;47m-> ");
+	else
+		printf("\033[1;31;47m-> ");
+	printf("\033[1;32;47m%s\033[0m$ ", getcwd(dir, 255));
 	fflush(stdout);
 }
 
@@ -51,7 +56,7 @@ static bool inputCmd(vector<string> &args, char **&argv)
 	return true;
 }
 
-static void changeDir(vector<string> &args)
+static bool changeDir(vector<string> &args)
 {
 	static string lastDir;
 	if (args.size() == 1)
@@ -61,28 +66,31 @@ static void changeDir(vector<string> &args)
 	if (args[1] == "-")
 	{
 		if (lastDir.empty())
-			return;
+			return true;
 		else
 			args[1] = lastDir;
 	}
 	else if (args[1][0] == '~')
 	{
 		args[1] = string(getenv("HOME")) + args[1].substr(1);
-		cout << args[1] << endl;
 	}
 	lastDir = string(getcwd(dir, 255));
 	if (chdir(args[1].c_str()) < 0)
 	{
 		perror(args[1].c_str());
-		fflush(stdout);
+		return false;
 	}
+	return true;
 }
 
-static bool builtins(vector<string> &args)//if matches ,returns true
+static bool builtins(vector<string> &args, bool &success)//if matches builtins,returns true,otherwise returns false
 {
 	if (args[0] == "cd")
 	{
-		changeDir(args);
+		if (!changeDir(args))
+		{
+			success = FAIL;
+		}
 		return true;
 	}
 	else if (args[0] == "exit")
@@ -90,14 +98,14 @@ static bool builtins(vector<string> &args)//if matches ,returns true
 	return false;
 }
 
-static void childProcess(char **argv)
+static void forkAndExec(char **argv, bool &success)
 {
-	int stat_loc;
+	int status;
 	pid_t child_pid = fork();
 	if (child_pid < 0)
 	{
 		perror("Fork failed");
-		fflush(stdout);
+		success = FAIL;
 		exit(EXIT_FAILURE);
 	}
 	else if (child_pid == 0)
@@ -107,17 +115,20 @@ static void childProcess(char **argv)
 		if (execvp(argv[0], argv) < 0)
 		{
 			perror(argv[0]);
-			fflush(stdout);
 			exit(EXIT_FAILURE);
 		}
 	}
 	else
 	{
-		waitpid(child_pid, &stat_loc, WUNTRACED);
+		waitpid(child_pid, &status, WUNTRACED);
+		if ((WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) || WIFSIGNALED(status))
+		{
+			success = FAIL;
+		}
 	}
 }
 
-static void freeMemory(vector<string> &args, char **argv)
+static void freeMemory(vector<string> &args, char **&argv)
 {
 	args.clear();
 	if (argv)
@@ -126,18 +137,25 @@ static void freeMemory(vector<string> &args, char **argv)
 	}
 }
 
+static void resetRunStatus(bool &s)
+{
+	s = SUCCESS;
+}
+
 int main()
 {
 	char **argv = nullptr;
 	vector<string> args;
 	signal(SIGINT, SIG_IGN);//Ignores the signal.
+	bool lastCmdRunStatus = SUCCESS;
 	while (true)
 	{
-		printPrompt();
-		if (!inputCmd(args, argv))
+		printPrompt(lastCmdRunStatus);
+		resetRunStatus(lastCmdRunStatus);
+		if (!inputCmd(args, argv))//null input
 			continue;
-		if (!builtins(args))
-			childProcess(argv);
+		if (!builtins(args, lastCmdRunStatus))//if not builtins, run execvp
+			forkAndExec(argv, lastCmdRunStatus);
 		freeMemory(args, argv);
 	}
 }

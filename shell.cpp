@@ -5,17 +5,18 @@
 #include <unistd.h>
 #include<iostream>
 #include<sys/wait.h>
+#include <signal.h>
 using namespace std;
 
-char dir[255];
+static char dir[255];
 
-void printPrompt()
+static void printPrompt()
 {
 	printf("\033[1;32;47m-> %s\033[0m$ ", getcwd(dir, 255));
 	fflush(stdout);
 }
 
-bool inputCmd(vector<string> &args, char **&argv)
+static bool inputCmd(vector<string> &args, char **&argv)
 {
 	string cmd;
 	getline(cin, cmd);
@@ -50,7 +51,7 @@ bool inputCmd(vector<string> &args, char **&argv)
 	return true;
 }
 
-void changeDir(vector<string> &args)
+static void changeDir(vector<string> &args)
 {
 	static string lastDir;
 	if (args.size() == 1)
@@ -64,6 +65,11 @@ void changeDir(vector<string> &args)
 		else
 			args[1] = lastDir;
 	}
+	else if (args[1][0] == '~')
+	{
+		args[1] = string(getenv("HOME")) + args[1].substr(1);
+		cout << args[1] << endl;
+	}
 	lastDir = string(getcwd(dir, 255));
 	if (chdir(args[1].c_str()) < 0)
 	{
@@ -72,7 +78,7 @@ void changeDir(vector<string> &args)
 	}
 }
 
-bool builtins(vector<string> &args)//if matches ,returns true
+static bool builtins(vector<string> &args)//if matches ,returns true
 {
 	if (args[0] == "cd")
 	{
@@ -84,7 +90,7 @@ bool builtins(vector<string> &args)//if matches ,returns true
 	return false;
 }
 
-void childProcess(char **argv)
+static void childProcess(char **argv)
 {
 	int stat_loc;
 	pid_t child_pid = fork();
@@ -96,6 +102,7 @@ void childProcess(char **argv)
 	}
 	else if (child_pid == 0)
 	{
+		signal(SIGINT, SIG_DFL);//Sets the default behaviour for the signal.
 		/* Never returns if the call is successful */
 		if (execvp(argv[0], argv) < 0)
 		{
@@ -110,7 +117,7 @@ void childProcess(char **argv)
 	}
 }
 
-void freeMemory(vector<string> &args, char **argv)
+static void freeMemory(vector<string> &args, char **argv)
 {
 	args.clear();
 	if (argv)
@@ -123,6 +130,7 @@ int main()
 {
 	char **argv = nullptr;
 	vector<string> args;
+	signal(SIGINT, SIG_IGN);//Ignores the signal.
 	while (true)
 	{
 		printPrompt();

@@ -9,7 +9,7 @@
 #include <readline/history.h>
 using namespace std;
 
-const int DIRSIZE = 256;
+static const int DIRSIZE = 256;
 
 static char dir[DIRSIZE];
 

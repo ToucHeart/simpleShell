@@ -5,31 +5,49 @@
 #include <unistd.h>
 #include<iostream>
 #include<sys/wait.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 using namespace std;
 
-static char dir[255];
+const int DIRSIZE = 256;
+
+static char dir[DIRSIZE];
 
 static const bool SUCCESS = true, FAIL = false;
 
 static void printPrompt(bool succeedLast)
 {
-	if (succeedLast)
-		printf("\033[1;32;47m-> ");
-	else
-		printf("\033[1;31;47m-> ");
-	printf("\033[1;32;47m%s\033[0m$ ", getcwd(dir, 255));
+	succeedLast ? printf("\033[1;32;47m-> ") : printf("\033[1;31;47m-> ");
+	string tempdir = getcwd(dir, DIRSIZE);
+	if (tempdir == getenv("HOME"))
+	{
+		tempdir = "~";
+	}
+	decltype(tempdir.size()) pos = tempdir.find_last_of('/');
+	if (pos < tempdir.size() - 1)//not root directory,not home directory
+	{
+		tempdir = tempdir.substr(pos + 1);
+	}
+	printf("\033[1;32;47m%s\033[0m$ ", tempdir.c_str());
 	fflush(stdout);
+}
+
+static bool rstripInput(string &cmd)
+{
+	decltype(cmd.size()) size = cmd.size() - 1;
+	while (cmd[size] == ' ')
+		size--;
+	cmd.resize(size + 1);
+	if (cmd.empty())
+		return false;
+	return true;
 }
 
 static bool inputCmd(vector<string> &args, char **&argv)
 {
 	string cmd;
 	getline(cin, cmd);
-	decltype(cmd.size()) size = cmd.size() - 1;
-	while (cmd[size] == ' ')
-		size--;
-	cmd.resize(size + 1);
-	if (cmd.empty())
+	if (!rstripInput(cmd))
 		return false;
 	stringstream ss(cmd);
 	string str;

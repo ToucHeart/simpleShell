@@ -6,7 +6,6 @@
 #include<iostream>
 #include<sys/wait.h>
 #include <readline/readline.h>
-#include <readline/history.h>
 using namespace std;
 
 static const int DIRSIZE = 256;

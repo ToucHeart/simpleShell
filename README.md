@@ -1,2 +1,2 @@
 # simpleShell
-implement a simple shell using c++
+implement a simple shell using c&c++
